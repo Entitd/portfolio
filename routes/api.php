@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\MetricsController;
 
 Route::post('/contact', [ContactController::class, 'store'])
+    ->middleware('throttle:contact')
     ->name('contact.store');
 
 Route::get('/health', [HealthController::class, 'index'])

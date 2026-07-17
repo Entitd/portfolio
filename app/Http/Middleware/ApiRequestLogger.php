@@ -32,7 +32,7 @@ class ApiRequestLogger
         } catch (Throwable $exception) {
             $this->logRequest($request, 500, $startedAt, $requestId, $exception);
 
-            throw $exceptoin;
+            throw $exception;
         }
     }
 
