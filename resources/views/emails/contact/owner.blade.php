@@ -1,5 +1,4 @@
 <x-mail::message>
-# Introduction
 
 Заявка № {{ $contact->request_id }}
 Имя {{ $contact->name }}

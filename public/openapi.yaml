@@ -1,0 +1,295 @@
+openapi: 3.0.3
+
+info:
+  title: Portfolio Contact API
+  version: 1.0.0
+  description: REST API для лендинг-презентации PHP / Backend-разработчика.
+
+servers:
+  - url: /
+    description: Current host
+
+tags:
+  - name: Contact
+    description: Форма обратной связи
+  - name: System
+    description: Системные endpoint'ы
+
+paths:
+  /api/contact:
+    post:
+      tags:
+        - Contact
+      summary: Отправить заявку с формы обратной связи
+      description: >
+        Валидирует данные формы, сохраняет обращение, отправляет email владельцу сайта
+        и копию пользователю. Endpoint защищён rate limiting.
+      operationId: createContactRequest
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContactRequest'
+            examples:
+              default:
+                summary: Пример заявки
+                value:
+                  name: Иван
+                  email: ivan@example.com
+                  phone: "+79991234567"
+                  comment: Хочу обсудить разработку проекта
+      responses:
+        '201':
+          description: Заявка успешно создана
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactCreatedResponse'
+              example:
+                message: Successfully created contact!
+                data:
+                  id: 1
+                  request_id: "8bb2c0d4-9710-4d15-a6b7-45e28e708f35"
+        '422':
+          description: Ошибка валидации
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+              example:
+                message: Validation failed.
+                error:
+                  status: 422
+                  type: ValidationException
+                errors:
+                  email:
+                    - Укажите корректный email.
+        '429':
+          description: Превышен лимит запросов
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Через сколько секунд можно повторить запрос
+            X-RateLimit-Limit:
+              schema:
+                type: integer
+            X-RateLimit-Remaining:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Too many requests.
+                error:
+                  status: 429
+                  type: ThrottleRequestsException
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                message: Internal server error.
+                error:
+                  status: 500
+                  type: ErrorException
+
+  /api/health:
+    get:
+      tags:
+        - System
+      summary: Проверить состояние сервиса
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Сервис работает
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                services:
+                  application: ok
+                  database: ok
+                timestamp: "2026-07-17T11:30:00+00:00"
+        '503':
+          description: Один из сервисов недоступен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: error
+                services:
+                  application: ok
+                  database: "SQLSTATE connection error"
+                timestamp: "2026-07-17T11:30:00+00:00"
+
+  /api/metrics:
+    get:
+      tags:
+        - System
+      summary: Получить статистику обращений
+      operationId: getMetrics
+      responses:
+        '200':
+          description: Статистика обращений
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsResponse'
+              example:
+                data:
+                  metrics:
+                    total: 12
+                timestamp: "2026-07-17T11:30:00+00:00"
+
+components:
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Необязательный ID запроса. Если не передан, backend создаёт UUID сам.
+      schema:
+        type: string
+        format: uuid
+
+  headers:
+    XRequestId:
+      description: ID запроса для трассировки в логах
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    ContactRequest:
+      type: object
+      required:
+        - name
+        - email
+        - phone
+        - comment
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: Иван
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          example: ivan@example.com
+        phone:
+          type: string
+          minLength: 7
+          maxLength: 32
+          pattern: '^\+?[0-9\s().-]+$'
+          example: "+79991234567"
+        comment:
+          type: string
+          minLength: 5
+          maxLength: 3000
+          example: Хочу обсудить разработку проекта
+
+    ContactCreatedResponse:
+      type: object
+      required:
+        - message
+        - data
+      properties:
+        message:
+          type: string
+          example: Successfully created contact!
+        data:
+          type: object
+          required:
+            - id
+            - request_id
+          properties:
+            id:
+              type: integer
+              example: 1
+            request_id:
+              type: string
+              format: uuid
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - error
+        services:
+          type: object
+          properties:
+            application:
+              type: string
+              example: ok
+            database:
+              type: string
+              example: ok
+        timestamp:
+          type: string
+          format: date-time
+
+    MetricsResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            metrics:
+              type: object
+              properties:
+                total:
+                  type: integer
+                  example: 12
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Internal server error.
+        error:
+          type: object
+          properties:
+            status:
+              type: integer
+              example: 500
+            type:
+              type: string
+              example: RuntimeException
+
+    ValidationErrorResponse:
+      allOf:
+        - $ref: '#/components/schemas/ErrorResponse'
+        - type: object
+          properties:
+            errors:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              example:
+                email:
+                  - Укажите корректный email.
