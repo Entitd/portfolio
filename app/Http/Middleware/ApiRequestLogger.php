@@ -6,20 +6,22 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Throwable;
 
 class ApiRequestLogger
 {
     /**
-     * Handle an incoming request.
-     *
-     * @param  Closure(Request): (Response)  $next
+     * @param  Closure(Request): Response  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         $startedAt = microtime(true);
-        $requestId = $request->header('X-Request-Id', (string) Str::uuid());
+        $requestId = (string) Str::uuid();
+
+        $request->attributes->set('request_id', $requestId);
 
         try {
             $response = $next($request);
@@ -30,7 +32,13 @@ class ApiRequestLogger
 
             return $response;
         } catch (Throwable $exception) {
-            $this->logRequest($request, 500, $startedAt, $requestId, $exception);
+            $status = match (true) {
+                $exception instanceof ValidationException => 422,
+                $exception instanceof HttpExceptionInterface => $exception->getStatusCode(),
+                default => 500,
+            };
+
+            $this->logRequest($request, $status, $startedAt, $requestId, $exception);
 
             throw $exception;
         }
@@ -42,8 +50,7 @@ class ApiRequestLogger
         float $startedAt,
         string $requestId,
         ?Throwable $exception = null,
-    ): void 
-    {
+    ): void {
         Log::channel('api_requests')->info('API request handled', [
             'request_id' => $requestId,
             'method' => $request->method(),
@@ -52,22 +59,8 @@ class ApiRequestLogger
             'status' => $status,
             'duration_ms' => round((microtime(true) - $startedAt) * 1000, 2),
             'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'payload' => $this->safePayload($request),
-            'error' => $exception?->getMessage(),
+            'user_agent' => Str::limit((string) $request->userAgent(), 255),
+            'error_type' => $exception ? $exception::class : null,
         ]);
-    }
-
-    private function safePayload(Request $request): array
-    {
-        return collect($request->except([
-            'password',
-            'password_confirmation',
-            'token',
-            'api_key',
-            '_token',
-        ]))->map(function (mixed $value) {
-            return is_string($value) ? Str::limit($value, 500) : $value;
-        })->all();
     }
 }

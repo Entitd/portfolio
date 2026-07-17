@@ -4,33 +4,31 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreContactRequest;
-use App\Mail\ContactOwnerNotification;
-use App\Mail\ContactUserNotification;
-use App\Models\Contact;
+use App\Services\ContactService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Mail;
 
 class ContactController extends Controller
 {
-    public function store(StoreContactRequest $request): JsonResponse
-    {
-        $contact = Contact::create([
-            ...$request->validated(),
-            'request_id' => (string) Str::uuid(),
-        ]);
-
-        Mail::to(config('contact.owner_email'))
-            ->send(new ContactOwnerNotification($contact));
-
-        Mail::to($contact->email)
-            ->send(new ContactUserNotification($contact));
+    public function store(
+        StoreContactRequest $request,
+        ContactService $contactService,
+    ): JsonResponse {
+        $contact = $contactService->create(
+            data: $request->validated(),
+            requestId: $request->attributes->get('request_id'),
+        );
 
         return response()->json([
-            'message' => 'Successfully created contact!',
+            'message' => 'Обращение успешно принято.',
             'data' => [
                 'id' => $contact->id,
                 'request_id' => $contact->request_id,
+                'ai' => [
+                    'answer' => $contact->ai_answer,
+                    'category' => $contact->ai_category,
+                    'sentiment' => $contact->ai_sentiment,
+                    'status' => $contact->ai_status,
+                ],
             ],
         ], 201);
     }

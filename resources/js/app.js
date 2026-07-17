@@ -56,14 +56,30 @@ if (form instanceof HTMLFormElement) {
             const data = await response.json().catch(() => ({}));
 
             if (response.ok) {
-                const requestId = data?.data?.request_id;
-                form.reset();
-                setStatus(
-                    requestId
-                        ? `Заявка отправлена. Номер обращения: ${requestId}`
-                        : 'Заявка отправлена.',
-                    'success',
-                );
+                const rawAiAnswer = data?.data?.ai?.answer;
+                const rawRequestId = data?.data?.request_id;
+
+                const aiAnswer =
+                    typeof rawAiAnswer === 'string' && rawAiAnswer.trim() !== ''
+                        ? rawAiAnswer.trim()
+                        : null;
+
+                const requestId =
+                    typeof rawRequestId === 'string' && rawRequestId.trim() !== ''
+                        ? rawRequestId.trim()
+                        : null;
+
+                const messageParts = ['Заявка отправлена.'];
+
+                if (aiAnswer) {
+                    messageParts.push(aiAnswer);
+                }
+
+                if (requestId) {
+                    messageParts.push(`Номер обращения: ${requestId}.`);
+                }
+
+                setStatus(messageParts.join(' '), 'success');
 
                 return;
             }

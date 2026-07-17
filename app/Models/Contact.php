@@ -15,5 +15,17 @@ class Contact extends Model
         'phone',
         'comment',
         'request_id',
+        'ai_answer',
+        'ai_category',
+        'ai_sentiment',
+        'ai_status',
+        'ai_processed_at',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'ai_processed_at' => 'datetime',
+        ];
+    }
 }

@@ -14,6 +14,14 @@ return [
     |
     */
 
+    'ollama' => [
+        'base_url' => env('OLLAMA_BASE_URL', 'http://127.0.0.1:11434'),
+        'model' => env('OLLAMA_MODEL', 'gemma3:4b'),
+        'timeout' => (int) env('OLLAMA_TIMEOUT', 30),
+        'connect_timeout' => (int) env('OLLAMA_CONNECT_TIMEOUT', 3),
+        'keep_alive' => env('OLLAMA_KEEP_ALIVE', '10m'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

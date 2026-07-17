@@ -6,6 +6,11 @@
 Email {{ $contact->email }}
 Коментарий {{ $contact->comment }}
 
+Категория: {{ $contact->ai_category }}
+Тональность: {{ $contact->ai_sentiment }}
+Статус AI: {{ $contact->ai_status }}
+Ответ AI: {{ $contact->ai_answer }}
+
 Спасибо,<br>
 {{ config('app.name') }}
 </x-mail::message>
