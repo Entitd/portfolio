@@ -2,31 +2,31 @@ openapi: 3.0.3
 
 info:
   title: Portfolio Contact API
-  version: 1.0.0
-  description: REST API для лендинг-презентации PHP / Backend-разработчика.
+  version: 1.1.0
+  description: >
+    REST API лендинга PHP / Backend-разработчика. API принимает обращения,
+    сохраняет их, выполняет AI-анализ и отправляет email-уведомления.
 
 servers:
   - url: /
-    description: Current host
+    description: Текущий хост
 
 tags:
   - name: Contact
     description: Форма обратной связи
   - name: System
-    description: Системные endpoint'ы
+    description: Состояние сервиса и статистика
 
 paths:
   /api/contact:
     post:
-      tags:
-        - Contact
-      summary: Отправить заявку с формы обратной связи
+      tags: [Contact]
+      summary: Отправить обращение
       description: >
-        Валидирует данные формы, сохраняет обращение, отправляет email владельцу сайта
-        и копию пользователю. Endpoint защищён rate limiting.
-      operationId: createContactRequest
-      parameters:
-        - $ref: '#/components/parameters/XRequestId'
+        Нормализует и валидирует данные, сохраняет обращение, выполняет AI-анализ,
+        отправляет письмо владельцу сайта и копию пользователю. Endpoint защищён
+        rate limiting по IP.
+      operationId: createContact
       requestBody:
         required: true
         content:
@@ -34,16 +34,16 @@ paths:
             schema:
               $ref: '#/components/schemas/ContactRequest'
             examples:
-              default:
-                summary: Пример заявки
+              project:
+                summary: Запрос на разработку проекта
                 value:
-                  name: Иван
+                  name: Иван Петров
                   email: ivan@example.com
-                  phone: "+79991234567"
-                  comment: Хочу обсудить разработку проекта
+                  phone: '+79991234567'
+                  comment: Хочу обсудить разработку нового проекта
       responses:
         '201':
-          description: Заявка успешно создана
+          description: Обращение обработано
           headers:
             X-Request-Id:
               $ref: '#/components/headers/XRequestId'
@@ -52,10 +52,15 @@ paths:
               schema:
                 $ref: '#/components/schemas/ContactCreatedResponse'
               example:
-                message: Successfully created contact!
+                message: Обращение успешно принято.
                 data:
                   id: 1
-                  request_id: "8bb2c0d4-9710-4d15-a6b7-45e28e708f35"
+                  request_id: 8bb2c0d4-9710-4d15-a6b7-45e28e708f35
+                  ai:
+                    answer: Спасибо за обращение! Я ознакомился с описанием проекта и скоро свяжусь с вами.
+                    category: project
+                    sentiment: positive
+                    status: success
         '422':
           description: Ошибка валидации
           content:
@@ -74,9 +79,9 @@ paths:
           description: Превышен лимит запросов
           headers:
             Retry-After:
+              description: Число секунд до следующей попытки
               schema:
                 type: integer
-              description: Через сколько секунд можно повторить запрос
             X-RateLimit-Limit:
               schema:
                 type: integer
@@ -102,17 +107,19 @@ paths:
                 message: Internal server error.
                 error:
                   status: 500
-                  type: ErrorException
+                  type: TransportException
 
   /api/health:
     get:
-      tags:
-        - System
+      tags: [System]
       summary: Проверить состояние сервиса
       operationId: healthCheck
       responses:
         '200':
-          description: Сервис работает
+          description: Приложение и БД доступны
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -122,9 +129,9 @@ paths:
                 services:
                   application: ok
                   database: ok
-                timestamp: "2026-07-17T11:30:00+00:00"
+                timestamp: '2026-07-17T20:30:59+00:00'
         '503':
-          description: Один из сервисов недоступен
+          description: База данных недоступна
           content:
             application/json:
               schema:
@@ -133,18 +140,20 @@ paths:
                 status: error
                 services:
                   application: ok
-                  database: "SQLSTATE connection error"
-                timestamp: "2026-07-17T11:30:00+00:00"
+                  database: unavailable
+                timestamp: '2026-07-17T20:30:59+00:00'
 
   /api/metrics:
     get:
-      tags:
-        - System
+      tags: [System]
       summary: Получить статистику обращений
       operationId: getMetrics
       responses:
         '200':
-          description: Статистика обращений
+          description: Текущее количество обращений
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
           content:
             application/json:
               schema:
@@ -153,22 +162,12 @@ paths:
                 data:
                   metrics:
                     total: 12
-                timestamp: "2026-07-17T11:30:00+00:00"
+                timestamp: '2026-07-17T20:30:59+00:00'
 
 components:
-  parameters:
-    XRequestId:
-      name: X-Request-Id
-      in: header
-      required: false
-      description: Необязательный ID запроса. Если не передан, backend создаёт UUID сам.
-      schema:
-        type: string
-        format: uuid
-
   headers:
     XRequestId:
-      description: ID запроса для трассировки в логах
+      description: UUID запроса для корреляции ответа, записи в БД и логов
       schema:
         type: string
         format: uuid
@@ -176,17 +175,14 @@ components:
   schemas:
     ContactRequest:
       type: object
-      required:
-        - name
-        - email
-        - phone
-        - comment
+      additionalProperties: false
+      required: [name, email, phone, comment]
       properties:
         name:
           type: string
           minLength: 2
           maxLength: 100
-          example: Иван
+          example: Иван Петров
         email:
           type: string
           format: email
@@ -197,92 +193,115 @@ components:
           minLength: 7
           maxLength: 32
           pattern: '^\+?[0-9\s().-]+$'
-          example: "+79991234567"
+          example: '+79991234567'
         comment:
           type: string
           minLength: 5
           maxLength: 3000
-          example: Хочу обсудить разработку проекта
+          example: Хочу обсудить разработку нового проекта
 
     ContactCreatedResponse:
       type: object
-      required:
-        - message
-        - data
+      required: [message, data]
       properties:
         message:
           type: string
-          example: Successfully created contact!
+          example: Обращение успешно принято.
         data:
           type: object
-          required:
-            - id
-            - request_id
+          required: [id, request_id, ai]
           properties:
             id:
               type: integer
+              minimum: 1
               example: 1
             request_id:
               type: string
               format: uuid
+            ai:
+              $ref: '#/components/schemas/AiAnalysis'
+
+    AiAnalysis:
+      type: object
+      required: [answer, category, sentiment, status]
+      properties:
+        answer:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: AI-ответ или безопасный fallback-текст
+        category:
+          type: string
+          enum: [project, job, consultation, cooperation, spam, other]
+        sentiment:
+          type: string
+          enum: [positive, neutral, negative, unknown]
+        status:
+          type: string
+          enum: [success, fallback]
 
     HealthResponse:
       type: object
+      required: [status, services, timestamp]
       properties:
         status:
           type: string
-          enum:
-            - ok
-            - error
+          enum: [ok, error]
         services:
           type: object
+          required: [application, database]
           properties:
             application:
               type: string
-              example: ok
+              enum: [ok]
             database:
               type: string
-              example: ok
+              description: Статус БД или краткое описание ошибки
         timestamp:
           type: string
           format: date-time
 
     MetricsResponse:
       type: object
+      required: [data, timestamp]
       properties:
         data:
           type: object
+          required: [metrics]
           properties:
             metrics:
               type: object
+              required: [total]
               properties:
                 total:
                   type: integer
-                  example: 12
+                  minimum: 0
         timestamp:
           type: string
           format: date-time
 
     ErrorResponse:
       type: object
+      required: [message, error]
       properties:
         message:
           type: string
-          example: Internal server error.
         error:
           type: object
+          required: [status, type]
           properties:
             status:
               type: integer
-              example: 500
+              minimum: 400
+              maximum: 599
             type:
               type: string
-              example: RuntimeException
 
     ValidationErrorResponse:
       allOf:
         - $ref: '#/components/schemas/ErrorResponse'
         - type: object
+          required: [errors]
           properties:
             errors:
               type: object
@@ -290,6 +309,3 @@ components:
                 type: array
                 items:
                   type: string
-              example:
-                email:
-                  - Укажите корректный email.

@@ -166,7 +166,8 @@
                 </div>
 
                 <aside class="contact-column" id="contact">
-                    <form class="contact-form" data-contact-form>
+                    <form class="contact-form" data-contact-form method="post">
+                        @csrf
                         <div class="form-header">
                             <p class="eyebrow">Связаться</p>
                             <h2>Обсудим проект</h2>
