@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreContactRequest;
+use App\Mail\ContactOwnerNotification;
+use App\Mail\ContactUserNotification;
 use App\Models\Contact;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
 
 class ContactController extends Controller
 {
@@ -16,6 +19,12 @@ class ContactController extends Controller
             ...$request->validated(),
             'request_id' => (string) Str::uuid(),
         ]);
+
+        Mail::to(config('contact.owner_email'))
+            ->send(new ContactOwnerNotification($contact));
+
+        Mail::to($contact->email)
+            ->send(new ContactUserNotification($contact));
 
         return response()->json([
             'message' => 'Successfully created contact!',

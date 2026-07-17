@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\Contact;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -17,7 +18,7 @@ class ContactOwnerNotification extends Mailable
     /**
      * Create a new message instance.
      */
-    public function __construct()
+    public function __construct(public readonly Contact $contact)
     {
         //
     }
@@ -28,7 +29,7 @@ class ContactOwnerNotification extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Contact Owner Notification',
+            subject: 'Новая заявка №' . $this->contact->request_id,
         );
     }
 
@@ -39,6 +40,9 @@ class ContactOwnerNotification extends Mailable
     {
         return new Content(
             markdown: 'emails.contact.owner',
+            with: [
+                'contact' => $this->contact,
+            ]
         );
     }
 

@@ -1,12 +1,12 @@
 <x-mail::message>
 # Introduction
 
-The body of your message.
+Заявка № {{ $contact->request_id }}
+Имя {{ $contact->name }}
+Телефон {{ $contact->phone }}
+Email {{ $contact->email }}
+Коментарий {{ $contact->comment }}
 
-<x-mail::button :url="''">
-Button Text
-</x-mail::button>
-
-Thanks,<br>
+Спасибо,<br>
 {{ config('app.name') }}
 </x-mail::message>
